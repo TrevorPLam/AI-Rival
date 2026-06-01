@@ -9,58 +9,45 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface Conversation {
+export interface GeminiConversation {
   id: number;
   title: string;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
-  /** @nullable */
-  lastMessagePreview?: string | null;
 }
 
-export type MessageRole = typeof MessageRole[keyof typeof MessageRole];
-
-
-export const MessageRole = {
-  user: 'user',
-  assistant: 'assistant',
-} as const;
-
-export interface Message {
+export interface GeminiMessage {
   id: number;
   conversationId: number;
-  role: MessageRole;
+  role: string;
   content: string;
   createdAt: string;
 }
 
-export interface ConversationWithMessages {
+export interface GeminiConversationInput {
+  title?: string;
+}
+
+export interface GeminiMessageInput {
+  /** @minLength 1 */
+  content: string;
+}
+
+export interface GeminiConversationWithMessages {
   id: number;
   title: string;
   createdAt: string;
   updatedAt: string;
-  messages: Message[];
+  messages: GeminiMessage[];
 }
 
-export interface ConversationInput {
-  title?: string;
-}
-
-export interface ConversationUpdate {
+export interface GeminiTitleUpdate {
   /** @minLength 1 */
   title: string;
 }
 
-export interface MessageInput {
-  /** @minLength 1 */
-  content: string;
-}
-
-export interface Stats {
-  totalConversations: number;
-  totalMessages: number;
-  messagesLast24h: number;
-  avgMessagesPerConversation: number;
+export interface GeminiError {
+  error: string;
 }
 

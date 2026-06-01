@@ -6,12 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './conversation';
-export * from './conversationInput';
-export * from './conversationUpdate';
-export * from './conversationWithMessages';
+export * from './geminiConversation';
+export * from './geminiConversationInput';
+export * from './geminiConversationWithMessages';
+export * from './geminiError';
+export * from './geminiMessage';
+export * from './geminiMessageInput';
+export * from './geminiTitleUpdate';
 export * from './healthStatus';
-export * from './message';
-export * from './messageInput';
-export * from './messageRole';
-export * from './stats';

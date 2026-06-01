@@ -5,12 +5,11 @@
  * AI Chat API
  * OpenAPI spec version: 0.1.0
  */
-import type { Message } from './message';
 
-export interface ConversationWithMessages {
+export interface GeminiMessage {
   id: number;
-  title: string;
+  conversationId: number;
+  role: string;
+  content: string;
   createdAt: Date;
-  updatedAt: Date;
-  messages: Message[];
 }

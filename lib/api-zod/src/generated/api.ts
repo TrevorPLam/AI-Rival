@@ -19,33 +19,32 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all conversations
  */
-export const ListConversationsResponseItem = zod.object({
+export const ListGeminiConversationsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "messageCount": zod.number(),
-  "lastMessagePreview": zod.string().nullish()
+  "messageCount": zod.number()
 })
-export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+export const ListGeminiConversationsResponse = zod.array(ListGeminiConversationsResponseItem)
 
 
 /**
  * @summary Create a new conversation
  */
-export const CreateConversationBody = zod.object({
+export const CreateGeminiConversationBody = zod.object({
   "title": zod.string().optional()
 })
 
 
 /**
- * @summary Get a conversation with its messages
+ * @summary Get conversation with messages
  */
-export const GetConversationParams = zod.object({
+export const GetGeminiConversationParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const GetConversationResponse = zod.object({
+export const GetGeminiConversationResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "createdAt": zod.coerce.date(),
@@ -53,7 +52,7 @@ export const GetConversationResponse = zod.object({
   "messages": zod.array(zod.object({
   "id": zod.number(),
   "conversationId": zod.number(),
-  "role": zod.enum(['user', 'assistant']),
+  "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
 }))
@@ -61,60 +60,65 @@ export const GetConversationResponse = zod.object({
 
 
 /**
- * @summary Update conversation title
- */
-export const UpdateConversationParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-
-
-
-export const UpdateConversationBody = zod.object({
-  "title": zod.string().min(1)
-})
-
-export const UpdateConversationResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "messageCount": zod.number(),
-  "lastMessagePreview": zod.string().nullish()
-})
-
-
-/**
  * @summary Delete a conversation
  */
-export const DeleteConversationParams = zod.object({
+export const DeleteGeminiConversationParams = zod.object({
   "id": zod.coerce.number()
 })
 
 
 /**
- * @summary Send a user message and get an AI reply
+ * @summary List messages in a conversation
  */
-export const SendMessageParams = zod.object({
+export const ListGeminiMessagesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListGeminiMessagesResponseItem = zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListGeminiMessagesResponse = zod.array(ListGeminiMessagesResponseItem)
+
+
+/**
+ * @summary Send a message and receive an AI response (SSE stream)
+ */
+export const SendGeminiMessageParams = zod.object({
   "id": zod.coerce.number()
 })
 
 
 
 
-export const SendMessageBody = zod.object({
+export const SendGeminiMessageBody = zod.object({
   "content": zod.string().min(1)
 })
 
 
 /**
- * @summary Get usage statistics
+ * @summary Update conversation title
  */
-export const GetStatsResponse = zod.object({
-  "totalConversations": zod.number(),
-  "totalMessages": zod.number(),
-  "messagesLast24h": zod.number(),
-  "avgMessagesPerConversation": zod.number()
+export const UpdateGeminiConversationTitleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateGeminiConversationTitleBody = zod.object({
+  "title": zod.string().min(1)
+})
+
+export const UpdateGeminiConversationTitleResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "messageCount": zod.number()
 })
 
 

@@ -9,12 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
-  - name: conversations
-    description: Conversation management
-  - name: messages
-    description: Message operations
-  - name: stats
-    description: Usage statistics
+  - name: gemini
+    description: Gemini AI chat and image operations
 paths:
   /healthz:
     get:
@@ -29,10 +25,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /conversations:
+  /gemini/conversations:
     get:
-      operationId: listConversations
-      tags: [conversations]
+      operationId: listGeminiConversations
+      tags: [gemini]
       summary: List all conversations
       responses:
         "200":
@@ -42,30 +38,30 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Conversation"
+                  $ref: "#/components/schemas/GeminiConversation"
     post:
-      operationId: createConversation
-      tags: [conversations]
+      operationId: createGeminiConversation
+      tags: [gemini]
       summary: Create a new conversation
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ConversationInput"
+              $ref: "#/components/schemas/GeminiConversationInput"
       responses:
         "201":
-          description: Created
+          description: Created conversation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Conversation"
+                $ref: "#/components/schemas/GeminiConversation"
 
-  /conversations/{id}:
+  /gemini/conversations/{id}:
     get:
-      operationId: getConversation
-      tags: [conversations]
-      summary: Get a conversation with its messages
+      operationId: getGeminiConversation
+      tags: [gemini]
+      summary: Get conversation with messages
       parameters:
         - name: id
           in: path
@@ -78,37 +74,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationWithMessages"
+                $ref: "#/components/schemas/GeminiConversationWithMessages"
         "404":
           description: Not found
-    patch:
-      operationId: updateConversation
-      tags: [conversations]
-      summary: Update conversation title
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ConversationUpdate"
-      responses:
-        "200":
-          description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Conversation"
-        "404":
-          description: Not found
+                $ref: "#/components/schemas/GeminiError"
     delete:
-      operationId: deleteConversation
-      tags: [conversations]
+      operationId: deleteGeminiConversation
+      tags: [gemini]
       summary: Delete a conversation
       parameters:
         - name: id
@@ -121,12 +96,35 @@ paths:
           description: Deleted
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
 
-  /conversations/{id}/messages:
+  /gemini/conversations/{id}/messages:
+    get:
+      operationId: listGeminiMessages
+      tags: [gemini]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiMessage"
     post:
-      operationId: sendMessage
-      tags: [messages]
-      summary: Send a user message and get an AI reply
+      operationId: sendGeminiMessage
+      tags: [gemini]
+      summary: Send a message and receive an AI response (SSE stream)
       parameters:
         - name: id
           in: path
@@ -138,29 +136,39 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MessageInput"
-      responses:
-        "201":
-          description: AI reply returned
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-        "404":
-          description: Conversation not found
-
-  /stats:
-    get:
-      operationId: getStats
-      tags: [stats]
-      summary: Get usage statistics
+              $ref: "#/components/schemas/GeminiMessageInput"
       responses:
         "200":
-          description: Stats
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+
+  /gemini/conversations/{id}/title:
+    patch:
+      operationId: updateGeminiConversationTitle
+      tags: [gemini]
+      summary: Update conversation title
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiTitleUpdate"
+      responses:
+        "200":
+          description: Updated conversation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Stats"
+                $ref: "#/components/schemas/GeminiConversation"
+        "404":
+          description: Not found
 
 components:
   schemas:
@@ -171,7 +179,7 @@ components:
         status:
           type: string
 
-    Conversation:
+    GeminiConversation:
       type: object
       required: [id, title, createdAt, updatedAt, messageCount]
       properties:
@@ -187,10 +195,38 @@ components:
           format: date-time
         messageCount:
           type: integer
-        lastMessagePreview:
-          type: ["string", "null"]
 
-    ConversationWithMessages:
+    GeminiMessage:
+      type: object
+      required: [id, conversationId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    GeminiConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+
+    GeminiMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+
+    GeminiConversationWithMessages:
       type: object
       required: [id, title, createdAt, updatedAt, messages]
       properties:
@@ -207,15 +243,9 @@ components:
         messages:
           type: array
           items:
-            $ref: "#/components/schemas/Message"
+            $ref: "#/components/schemas/GeminiMessage"
 
-    ConversationInput:
-      type: object
-      properties:
-        title:
-          type: string
-
-    ConversationUpdate:
+    GeminiTitleUpdate:
       type: object
       required: [title]
       properties:
@@ -223,40 +253,9 @@ components:
           type: string
           minLength: 1
 
-    Message:
+    GeminiError:
       type: object
-      required: [id, conversationId, role, content, createdAt]
+      required: [error]
       properties:
-        id:
-          type: integer
-        conversationId:
-          type: integer
-        role:
+        error:
           type: string
-          enum: [user, assistant]
-        content:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-
-    MessageInput:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-          minLength: 1
-
-    Stats:
-      type: object
-      required: [totalConversations, totalMessages, messagesLast24h, avgMessagesPerConversation]
-      properties:
-        totalConversations:
-          type: integer
-        totalMessages:
-          type: integer
-        messagesLast24h:
-          type: integer
-        avgMessagesPerConversation:
-          type: number
