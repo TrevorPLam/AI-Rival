@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
+import type { GeminiModelId } from "./chat-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Download, PanelLeft, ArrowDown } from "lucide-react";
@@ -25,9 +26,12 @@ interface ChatAreaProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   systemInstruction: string;
+  model: GeminiModelId;
+  onModelChange: (model: GeminiModelId) => void;
+  onNewChat: () => void;
 }
 
-export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemInstruction }: ChatAreaProps) {
+export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemInstruction, model, onModelChange, onNewChat }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -75,7 +79,7 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
 
   const handleSend = (content: string) => {
     if (!conversationId) return;
-    sendMessage(conversationId, content, systemInstruction);
+    sendMessage(conversationId, content, systemInstruction, model);
   };
 
   const handleEdit = (messageId: number, content: string) => {
@@ -87,7 +91,7 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
     if (!conversationId || editingMessageId === null) return;
     setEditingMessageId(null);
     setEditingContent("");
-    editMessage(conversationId, editingMessageId, newContent, systemInstruction);
+    editMessage(conversationId, editingMessageId, newContent, systemInstruction, model);
   };
 
   const handleCancelEdit = () => {
@@ -102,7 +106,7 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
         onSuccess: (newConv) => {
           queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
           setLocation(`/${newConv.id}`);
-          sendMessage(newConv.id, prompt, systemInstruction);
+          sendMessage(newConv.id, prompt, systemInstruction, model);
         },
       }
     );
@@ -110,8 +114,8 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
 
   const handleRegenerate = useCallback(() => {
     if (!conversationId) return;
-    regenerateResponse(conversationId);
-  }, [conversationId, regenerateResponse]);
+    regenerateResponse(conversationId, model);
+  }, [conversationId, regenerateResponse, model]);
 
   const handleExport = () => {
     if (!messages || !conversation) return;
@@ -165,6 +169,25 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
             ))}
           </div>
         </div>
+
+        <ChatInput
+          onSend={(content) => {
+            createMutation.mutate(
+              { data: { title: "New Conversation" } },
+              {
+                onSuccess: (newConv) => {
+                  queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+                  setLocation(`/${newConv.id}`);
+                  sendMessage(newConv.id, content, systemInstruction, model);
+                },
+              }
+            );
+          }}
+          disabled={createMutation.isPending}
+          isStreaming={false}
+          model={model}
+          onModelChange={onModelChange}
+        />
       </div>
     );
   }
@@ -256,6 +279,8 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
           isEditing={editingMessageId !== null}
           onCancelEdit={handleCancelEdit}
           key={editingMessageId ?? "normal"}
+          model={model}
+          onModelChange={onModelChange}
         />
       </div>
     </div>

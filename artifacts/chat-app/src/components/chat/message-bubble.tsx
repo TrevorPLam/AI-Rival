@@ -49,6 +49,10 @@ function formatTime(date: string | Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
 export function MessageBubble({ role, content, createdAt, isStreaming, isLastAssistant, onRegenerate, onEdit }: MessageBubbleProps) {
   const isUser = role === "user";
   const [hovered, setHovered] = useState(false);
@@ -97,6 +101,8 @@ export function MessageBubble({ role, content, createdAt, isStreaming, isLastAss
       );
     },
   };
+
+  const words = content ? wordCount(content) : 0;
 
   return (
     <div
@@ -191,11 +197,18 @@ export function MessageBubble({ role, content, createdAt, isStreaming, isLastAss
                 </div>
               )}
 
-              {createdAt && (
-                <span className="text-xs text-muted-foreground ml-1 select-none">
-                  {formatTime(createdAt)}
-                </span>
-              )}
+              <div className="flex items-center gap-2 ml-1">
+                {words > 0 && (
+                  <span className="text-xs text-muted-foreground select-none" title="Word count">
+                    {words} {words === 1 ? "word" : "words"}
+                  </span>
+                )}
+                {createdAt && (
+                  <span className="text-xs text-muted-foreground select-none">
+                    {formatTime(createdAt)}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -14,6 +14,17 @@ import {
   RegenerateGeminiMessageParams,
 } from "@workspace/api-zod";
 
+const ALLOWED_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"] as const;
+type AllowedModel = (typeof ALLOWED_MODELS)[number];
+const DEFAULT_MODEL: AllowedModel = "gemini-2.5-flash";
+
+function resolveModel(raw: unknown): AllowedModel {
+  if (typeof raw === "string" && ALLOWED_MODELS.includes(raw as AllowedModel)) {
+    return raw as AllowedModel;
+  }
+  return DEFAULT_MODEL;
+}
+
 const router: IRouter = Router();
 
 router.get("/gemini/conversations", async (_req, res): Promise<void> => {
@@ -131,6 +142,8 @@ router.post("/gemini/conversations/:id/messages", async (req, res): Promise<void
     return;
   }
 
+  const model = resolveModel((req.body as Record<string, unknown>).model);
+
   const [conv] = await db
     .select()
     .from(conversations)
@@ -161,7 +174,7 @@ router.post("/gemini/conversations/:id/messages", async (req, res): Promise<void
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
+      model,
       contents: history.map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
@@ -193,7 +206,7 @@ router.post("/gemini/conversations/:id/messages", async (req, res): Promise<void
 
     if (conv.title === "New Chat" && history.length === 1) {
       const titleStream = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: DEFAULT_MODEL,
         contents: [
           {
             role: "user",
@@ -232,6 +245,8 @@ router.post("/gemini/conversations/:id/regenerate", async (req, res): Promise<vo
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  const model = resolveModel((req.body as Record<string, unknown>).model);
 
   const [conv] = await db
     .select()
@@ -273,7 +288,7 @@ router.post("/gemini/conversations/:id/regenerate", async (req, res): Promise<vo
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
+      model,
       contents: history.map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
@@ -316,16 +331,19 @@ router.post("/gemini/conversations/:id/edit", async (req, res): Promise<void> =>
     return;
   }
 
-  const { messageId, content, systemInstruction } = req.body as {
+  const { messageId, content, systemInstruction, model: rawModel } = req.body as {
     messageId?: number;
     content?: string;
     systemInstruction?: string;
+    model?: unknown;
   };
 
   if (typeof messageId !== "number" || !content || typeof content !== "string" || content.trim().length === 0) {
     res.status(400).json({ error: "messageId (number) and content (string) are required" });
     return;
   }
+
+  const model = resolveModel(rawModel);
 
   const [conv] = await db
     .select()
@@ -371,7 +389,7 @@ router.post("/gemini/conversations/:id/edit", async (req, res): Promise<void> =>
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
+      model,
       contents: history.map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],

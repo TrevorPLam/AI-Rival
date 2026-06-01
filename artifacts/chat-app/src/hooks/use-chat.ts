@@ -104,19 +104,23 @@ export function useChatStreaming(conversationId: number | null) {
     }
   }, [queryClient]);
 
-  const sendMessage = useCallback(async (convId: number, content: string, systemInstruction?: string) => {
+  const sendMessage = useCallback(async (convId: number, content: string, systemInstruction?: string, model?: string) => {
     const body: Record<string, string> = { content };
     if (systemInstruction?.trim()) body.systemInstruction = systemInstruction.trim();
+    if (model) body.model = model;
     await runStream(convId, `/api/gemini/conversations/${convId}/messages`, body);
   }, [runStream]);
 
-  const regenerateResponse = useCallback(async (convId: number) => {
-    await runStream(convId, `/api/gemini/conversations/${convId}/regenerate`, {});
+  const regenerateResponse = useCallback(async (convId: number, model?: string) => {
+    const body: Record<string, string> = {};
+    if (model) body.model = model;
+    await runStream(convId, `/api/gemini/conversations/${convId}/regenerate`, body);
   }, [runStream]);
 
-  const editMessage = useCallback(async (convId: number, messageId: number, content: string, systemInstruction?: string) => {
+  const editMessage = useCallback(async (convId: number, messageId: number, content: string, systemInstruction?: string, model?: string) => {
     const body: Record<string, string | number> = { messageId, content };
     if (systemInstruction?.trim()) body.systemInstruction = systemInstruction.trim();
+    if (model) body.model = model;
     await runStream(convId, `/api/gemini/conversations/${convId}/edit`, body);
   }, [runStream]);
 

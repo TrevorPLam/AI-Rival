@@ -8,6 +8,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "@/components/theme-provider";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   useListGeminiConversations,
   useCreateGeminiConversation,
   useDeleteGeminiConversation,
@@ -22,9 +33,47 @@ interface SidebarProps {
   onCollapse: () => void;
   systemInstruction: string;
   onSaveInstruction: (v: string) => void;
+  onNewChat: () => void;
 }
 
-export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruction }: SidebarProps) {
+type Conversation = {
+  id: number;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+  messageCount: number;
+};
+
+function groupByDate(convs: Conversation[]): { label: string; items: Conversation[] }[] {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday.getTime() - 86_400_000);
+  const startOfWeek = new Date(startOfToday.getTime() - 6 * 86_400_000);
+  const startOfMonth = new Date(startOfToday.getTime() - 29 * 86_400_000);
+
+  const groups: Record<string, Conversation[]> = {
+    Today: [],
+    Yesterday: [],
+    "Last 7 days": [],
+    "Last 30 days": [],
+    Older: [],
+  };
+
+  for (const conv of convs) {
+    const d = new Date(conv.updatedAt);
+    if (d >= startOfToday) groups.Today.push(conv);
+    else if (d >= startOfYesterday) groups.Yesterday.push(conv);
+    else if (d >= startOfWeek) groups["Last 7 days"].push(conv);
+    else if (d >= startOfMonth) groups["Last 30 days"].push(conv);
+    else groups.Older.push(conv);
+  }
+
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => ({ label, items }));
+}
+
+export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruction, onNewChat }: SidebarProps) {
   const [, setLocation] = useLocation();
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
@@ -37,18 +86,6 @@ export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruc
   const createMutation = useCreateGeminiConversation();
   const deleteMutation = useDeleteGeminiConversation();
   const renameMutation = useUpdateGeminiConversationTitle();
-
-  const handleNewChat = () => {
-    createMutation.mutate(
-      { data: { title: "New Conversation" } },
-      {
-        onSuccess: (newConv) => {
-          queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
-          setLocation(`/${newConv.id}`);
-        },
-      }
-    );
-  };
 
   const handleDelete = (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
@@ -96,12 +133,87 @@ export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruc
     }
   };
 
+  const handleClearAll = async () => {
+    const list = Array.isArray(conversations) ? conversations : [];
+    for (const conv of list) {
+      await fetch(`/api/gemini/conversations/${conv.id}`, { method: "DELETE" });
+    }
+    queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+    setLocation("/");
+  };
+
   const conversationsList = Array.isArray(conversations) ? conversations : [];
   const filtered = search.trim()
     ? conversationsList.filter((c) =>
         c.title.toLowerCase().includes(search.toLowerCase())
       )
     : conversationsList;
+
+  const groups = groupByDate(filtered as Conversation[]);
+
+  const renderConvItem = (conv: Conversation) => (
+    <div
+      key={conv.id}
+      className={cn(
+        "group flex items-center justify-between px-3 py-2 text-sm rounded-md cursor-pointer transition-colors",
+        activeId === conv.id
+          ? "bg-accent text-accent-foreground"
+          : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+      )}
+      onClick={() => renamingId !== conv.id && setLocation(`/${conv.id}`)}
+      data-testid={`link-conversation-${conv.id}`}
+    >
+      {renamingId === conv.id ? (
+        <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
+            onBlur={() => commitRename(conv.id)}
+            className="h-6 text-xs px-1 py-0 flex-1"
+            autoFocus
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0"
+            onClick={() => commitRename(conv.id)}
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+            <MessageSquare className="h-4 w-4 shrink-0" />
+            <span className="truncate">{conv.title}</span>
+          </div>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => startRename(e, conv.id, conv.title)}
+              title="Rename"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => handleDelete(e, conv.id)}
+              disabled={deleteMutation.isPending}
+              data-testid={`button-delete-${conv.id}`}
+              title="Delete"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="w-64 border-r border-border bg-sidebar flex flex-col h-full shrink-0">
@@ -130,7 +242,7 @@ export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruc
       <div className="p-3 flex flex-col gap-2">
         <Button
           className="w-full justify-start gap-2"
-          onClick={handleNewChat}
+          onClick={onNewChat}
           disabled={createMutation.isPending}
           data-testid="button-new-chat"
         >
@@ -167,74 +279,19 @@ export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruc
               {search ? "No matching chats" : "No conversations yet"}
             </div>
           ) : (
-            filtered.map((conv) => (
-              <div
-                key={conv.id}
-                className={cn(
-                  "group flex items-center justify-between px-3 py-2 text-sm rounded-md cursor-pointer transition-colors",
-                  activeId === conv.id
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => renamingId !== conv.id && setLocation(`/${conv.id}`)}
-                data-testid={`link-conversation-${conv.id}`}
-              >
-                {renamingId === conv.id ? (
-                  <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                    <Input
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
-                      onBlur={() => commitRename(conv.id)}
-                      className="h-6 text-xs px-1 py-0 flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() => commitRename(conv.id)}
-                    >
-                      <Check className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
-                      <MessageSquare className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{conv.title}</span>
-                    </div>
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => startRename(e, conv.id, conv.title)}
-                        title="Rename"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => handleDelete(e, conv.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-${conv.id}`}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </>
-                )}
+            groups.map(({ label, items }) => (
+              <div key={label} className="mb-2">
+                <div className="px-3 py-1 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider select-none">
+                  {label}
+                </div>
+                {items.map((conv) => renderConvItem(conv))}
               </div>
             ))
           )}
         </div>
       </ScrollArea>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-border space-y-1">
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -246,6 +303,37 @@ export function Sidebar({ activeId, onCollapse, systemInstruction, onSaveInstruc
             <span className="ml-auto h-2 w-2 rounded-full bg-primary" title="Active" />
           )}
         </Button>
+
+        {conversationsList.length > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2 text-sm text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear all chats
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear all conversations?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all {conversationsList.length} conversation{conversationsList.length !== 1 ? "s" : ""}. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleClearAll}
+                >
+                  Clear all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       <SettingsDialog
