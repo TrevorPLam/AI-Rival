@@ -14,6 +14,7 @@ import type { Components } from "react-markdown";
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
+  createdAt?: string | Date;
   isStreaming?: boolean;
   isLastAssistant?: boolean;
   onRegenerate?: () => void;
@@ -41,7 +42,12 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
   );
 }
 
-export function MessageBubble({ role, content, isStreaming, isLastAssistant, onRegenerate }: MessageBubbleProps) {
+function formatTime(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function MessageBubble({ role, content, createdAt, isStreaming, isLastAssistant, onRegenerate }: MessageBubbleProps) {
   const isUser = role === "user";
   const [hovered, setHovered] = useState(false);
   const { theme } = useTheme();
@@ -144,6 +150,11 @@ export function MessageBubble({ role, content, isStreaming, isLastAssistant, onR
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
+              )}
+              {createdAt && (
+                <span className="text-xs text-muted-foreground ml-1 select-none">
+                  {formatTime(createdAt)}
+                </span>
               )}
             </div>
           )}

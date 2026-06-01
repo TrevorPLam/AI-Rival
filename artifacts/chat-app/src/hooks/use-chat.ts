@@ -104,8 +104,10 @@ export function useChatStreaming(conversationId: number | null) {
     }
   }, [queryClient]);
 
-  const sendMessage = useCallback(async (convId: number, content: string) => {
-    await runStream(convId, `/api/gemini/conversations/${convId}/messages`, { content });
+  const sendMessage = useCallback(async (convId: number, content: string, systemInstruction?: string) => {
+    const body: Record<string, string> = { content };
+    if (systemInstruction?.trim()) body.systemInstruction = systemInstruction.trim();
+    await runStream(convId, `/api/gemini/conversations/${convId}/messages`, body);
   }, [runStream]);
 
   const regenerateResponse = useCallback(async (convId: number) => {

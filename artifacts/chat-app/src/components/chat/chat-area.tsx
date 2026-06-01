@@ -3,16 +3,33 @@ import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, PanelLeft } from "lucide-react";
 import { useListGeminiMessages, useGetGeminiConversation } from "@workspace/api-client-react";
 import { useChatStreaming } from "@/hooks/use-chat";
+import { useCreateGeminiConversation, getListGeminiConversationsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+
+const SUGGESTED_PROMPTS = [
+  { label: "Explain a concept", prompt: "Explain quantum computing in simple terms" },
+  { label: "Write something", prompt: "Help me write a professional email declining a meeting politely" },
+  { label: "Brainstorm ideas", prompt: "Give me 10 creative side project ideas for a software developer" },
+  { label: "Debug code", prompt: "What are common causes of memory leaks in JavaScript?" },
+  { label: "Learn something", prompt: "What are the most important things to know about personal finance?" },
+  { label: "Summarize", prompt: "Summarize the history of artificial intelligence in 5 key milestones" },
+];
 
 interface ChatAreaProps {
   conversationId: number | null;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  systemInstruction: string;
 }
 
-export function ChatArea({ conversationId }: ChatAreaProps) {
+export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemInstruction }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   
   const { data: messages, isLoading: isLoadingMessages } = useListGeminiMessages(
     conversationId as number,
@@ -25,6 +42,7 @@ export function ChatArea({ conversationId }: ChatAreaProps) {
   );
 
   const { sendMessage, regenerateResponse, stopGeneration, isStreaming, streamingMessage } = useChatStreaming(conversationId);
+  const createMutation = useCreateGeminiConversation();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -37,7 +55,20 @@ export function ChatArea({ conversationId }: ChatAreaProps) {
 
   const handleSend = (content: string) => {
     if (!conversationId) return;
-    sendMessage(conversationId, content);
+    sendMessage(conversationId, content, systemInstruction);
+  };
+
+  const handleSuggestedPrompt = (prompt: string) => {
+    createMutation.mutate(
+      { data: { title: "New Conversation" } },
+      {
+        onSuccess: (newConv) => {
+          queryClient.invalidateQueries({ queryKey: getListGeminiConversationsQueryKey() });
+          setLocation(`/${newConv.id}`);
+          sendMessage(newConv.id, prompt, systemInstruction);
+        },
+      }
+    );
   };
 
   const handleRegenerate = useCallback(() => {
@@ -64,14 +95,39 @@ export function ChatArea({ conversationId }: ChatAreaProps) {
 
   if (!conversationId) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-background text-center p-8">
-        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-          <div className="text-2xl font-semibold text-primary">A</div>
+      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+        <div className="h-14 border-b border-border flex items-center px-4 shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
+          {!sidebarOpen && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 mr-2" onClick={onToggleSidebar} title="Open sidebar">
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <span className="font-medium text-muted-foreground">Aria</span>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight mb-2">How can I help you today?</h2>
-        <p className="text-muted-foreground max-w-md">
-          Start a new conversation in the sidebar to begin interacting with Aria.
-        </p>
+
+        <div className="flex-1 flex flex-col items-center justify-center bg-background text-center p-8 overflow-auto">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+            <div className="text-2xl font-semibold text-primary">A</div>
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight mb-2">How can I help you today?</h2>
+          <p className="text-muted-foreground max-w-md mb-8">
+            Start a new conversation, or try one of these prompts:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full">
+            {SUGGESTED_PROMPTS.map((item) => (
+              <button
+                key={item.prompt}
+                className="text-left p-4 rounded-xl border border-border bg-card hover:bg-accent/50 hover:border-border/80 transition-colors group"
+                onClick={() => handleSuggestedPrompt(item.prompt)}
+                disabled={createMutation.isPending}
+              >
+                <div className="text-xs font-medium text-primary mb-1">{item.label}</div>
+                <div className="text-sm text-muted-foreground group-hover:text-foreground transition-colors leading-snug">{item.prompt}</div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -86,7 +142,12 @@ export function ChatArea({ conversationId }: ChatAreaProps) {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
-      <div className="h-14 border-b border-border flex items-center px-6 shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 absolute top-0 w-full">
+      <div className="h-14 border-b border-border flex items-center px-4 shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 absolute top-0 w-full">
+        {!sidebarOpen && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 mr-2 shrink-0" onClick={onToggleSidebar} title="Open sidebar">
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        )}
         <h2 className="font-medium truncate flex-1">{conversation?.title || "Conversation"}</h2>
         {messages && messages.length > 0 && (
           <Button
@@ -113,6 +174,7 @@ export function ChatArea({ conversationId }: ChatAreaProps) {
                 key={msg.id}
                 role={msg.role as "user" | "assistant"}
                 content={msg.content}
+                createdAt={msg.createdAt}
                 isLastAssistant={msg.id === lastAssistantId && !isStreaming}
                 onRegenerate={handleRegenerate}
               />

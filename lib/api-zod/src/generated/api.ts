@@ -95,7 +95,8 @@ export const SendGeminiMessageParams = zod.object({
 
 
 export const SendGeminiMessageBody = zod.object({
-  "content": zod.string().min(1)
+  "content": zod.string().min(1),
+  "systemInstruction": zod.string().optional()
 })
 
 

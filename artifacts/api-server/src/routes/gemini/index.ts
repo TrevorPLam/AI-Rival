@@ -166,7 +166,10 @@ router.post("/gemini/conversations/:id/messages", async (req, res): Promise<void
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
       })),
-      config: { maxOutputTokens: 8192 },
+      config: {
+        maxOutputTokens: 8192,
+        ...(body.data.systemInstruction ? { systemInstruction: body.data.systemInstruction } : {}),
+      },
     });
 
     for await (const chunk of stream) {
