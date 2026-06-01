@@ -28,25 +28,25 @@ args = "Start API Server"
 name = "Start Chat App"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/chat-app dev"
-waitForPort = 5173
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5173 BASE_PATH=/ pnpm --filter @workspace/chat-app dev"
+waitForPort = 5173
 
 [[workflows.workflow]]
 name = "Start API Server"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server dev"
-waitForPort = 3000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=3000 pnpm --filter @workspace/api-server dev"
+waitForPort = 3000
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -55,6 +55,14 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
 
 [[ports]]
 localPort = 8080
@@ -74,5 +82,3 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-PORT = "5173"
-BASE_PATH = "/"

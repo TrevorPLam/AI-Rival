@@ -56,11 +56,12 @@ export function Sidebar({ activeId }: SidebarProps) {
     );
   };
 
+  const conversationsList = Array.isArray(conversations) ? conversations : [];
   const filtered = search.trim()
-    ? (conversations ?? []).filter((c) =>
+    ? conversationsList.filter((c) =>
         c.title.toLowerCase().includes(search.toLowerCase())
       )
-    : conversations ?? [];
+    : conversationsList;
 
   return (
     <div className="w-64 border-r border-border bg-sidebar flex flex-col h-full">
