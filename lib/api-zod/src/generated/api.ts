@@ -100,6 +100,14 @@ export const SendGeminiMessageBody = zod.object({
 
 
 /**
+ * @summary Regenerate the last assistant response (SSE stream)
+ */
+export const RegenerateGeminiMessageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Update conversation title
  */
 export const UpdateGeminiConversationTitleParams = zod.object({

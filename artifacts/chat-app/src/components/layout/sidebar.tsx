@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, MessageSquare, Trash2, Moon, Sun } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, MessageSquare, Trash2, Moon, Sun, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "@/components/theme-provider";
@@ -22,6 +23,7 @@ export function Sidebar({ activeId }: SidebarProps) {
   const [, setLocation] = useLocation();
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
 
   const { data: conversations, isLoading } = useListGeminiConversations();
   const createMutation = useCreateGeminiConversation();
@@ -54,6 +56,12 @@ export function Sidebar({ activeId }: SidebarProps) {
     );
   };
 
+  const filtered = search.trim()
+    ? (conversations ?? []).filter((c) =>
+        c.title.toLowerCase().includes(search.toLowerCase())
+      )
+    : conversations ?? [];
+
   return (
     <div className="w-64 border-r border-border bg-sidebar flex flex-col h-full">
       <div className="p-4 border-b border-border flex items-center justify-between">
@@ -68,7 +76,7 @@ export function Sidebar({ activeId }: SidebarProps) {
         </Button>
       </div>
 
-      <div className="p-4">
+      <div className="p-3 flex flex-col gap-2">
         <Button
           className="w-full justify-start gap-2"
           onClick={handleNewChat}
@@ -78,6 +86,23 @@ export function Sidebar({ activeId }: SidebarProps) {
           <Plus className="h-4 w-4" />
           New Chat
         </Button>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search chats..."
+            className="pl-8 pr-7 h-8 text-sm"
+          />
+          {search && (
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearch("")}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1 px-2">
@@ -86,12 +111,12 @@ export function Sidebar({ activeId }: SidebarProps) {
             Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full rounded-md" />
             ))
-          ) : conversations?.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-4">
-              No conversations yet
+              {search ? "No matching chats" : "No conversations yet"}
             </div>
           ) : (
-            conversations?.map((conv) => (
+            filtered.map((conv) => (
               <div
                 key={conv.id}
                 className={cn(

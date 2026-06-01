@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   getListGeminiConversationsQueryKey, 
@@ -11,9 +11,17 @@ export function useChatStreaming(conversationId: number | null) {
   const queryClient = useQueryClient();
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<Partial<GeminiMessage> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const sendMessage = useCallback(async (convId: number, content: string) => {
-    if (!convId) return;
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
+  const runStream = useCallback(async (convId: number, url: string, body: object) => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsStreaming(true);
     setStreamingMessage({
@@ -24,10 +32,11 @@ export function useChatStreaming(conversationId: number | null) {
     });
 
     try {
-      const response = await fetch(`/api/gemini/conversations/${convId}/messages`, {
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -75,12 +84,14 @@ export function useChatStreaming(conversationId: number | null) {
           }
         }
       }
-    } catch (error) {
-      console.error("Stream error:", error);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name !== "AbortError") {
+        console.error("Stream error:", error);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsStreaming(false);
       setStreamingMessage(null);
-      // Invalidate to fetch actual saved message
       queryClient.invalidateQueries({
         queryKey: getGetGeminiConversationQueryKey(convId)
       });
@@ -93,9 +104,19 @@ export function useChatStreaming(conversationId: number | null) {
     }
   }, [queryClient]);
 
+  const sendMessage = useCallback(async (convId: number, content: string) => {
+    await runStream(convId, `/api/gemini/conversations/${convId}/messages`, { content });
+  }, [runStream]);
+
+  const regenerateResponse = useCallback(async (convId: number) => {
+    await runStream(convId, `/api/gemini/conversations/${convId}/regenerate`, {});
+  }, [runStream]);
+
   return {
     sendMessage,
+    regenerateResponse,
+    stopGeneration,
     isStreaming,
-    streamingMessage
+    streamingMessage,
   };
 }

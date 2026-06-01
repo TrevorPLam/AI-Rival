@@ -143,6 +143,29 @@ paths:
           content:
             text/event-stream: {}
 
+  /gemini/conversations/{id}/regenerate:
+    post:
+      operationId: regenerateGeminiMessage
+      tags: [gemini]
+      summary: Regenerate the last assistant response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of regenerated assistant response
+          content:
+            text/event-stream: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+
   /gemini/conversations/{id}/title:
     patch:
       operationId: updateGeminiConversationTitle

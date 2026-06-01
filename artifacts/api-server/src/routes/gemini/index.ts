@@ -11,6 +11,7 @@ import {
   SendGeminiMessageBody,
   UpdateGeminiConversationTitleParams,
   UpdateGeminiConversationTitleBody,
+  RegenerateGeminiMessageParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -217,6 +218,89 @@ router.post("/gemini/conversations/:id/messages", async (req, res): Promise<void
     res.end();
   } catch (err) {
     req.log.error({ err }, "Gemini stream error");
+    res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
+    res.end();
+  }
+});
+
+router.post("/gemini/conversations/:id/regenerate", async (req, res): Promise<void> => {
+  const params = RegenerateGeminiMessageParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [conv] = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, params.data.id));
+
+  if (!conv) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+
+  const history = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.conversationId, params.data.id))
+    .orderBy(messages.createdAt);
+
+  if (history.length === 0) {
+    res.status(400).json({ error: "No messages to regenerate" });
+    return;
+  }
+
+  const lastMsg = history[history.length - 1];
+  if (lastMsg.role === "assistant") {
+    await db.delete(messages).where(eq(messages.id, lastMsg.id));
+    history.pop();
+  }
+
+  if (history.length === 0) {
+    res.status(400).json({ error: "No user message found to regenerate from" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  let fullResponse = "";
+
+  try {
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: history.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+      config: { maxOutputTokens: 8192 },
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      }
+    }
+
+    await db.insert(messages).values({
+      conversationId: params.data.id,
+      role: "assistant",
+      content: fullResponse,
+    });
+
+    await db
+      .update(conversations)
+      .set({ updatedAt: new Date() })
+      .where(eq(conversations.id, params.data.id));
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    req.log.error({ err }, "Gemini regenerate stream error");
     res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
     res.end();
   }

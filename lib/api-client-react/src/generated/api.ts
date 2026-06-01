@@ -563,6 +563,76 @@ export const useSendGeminiMessage = <TError = ErrorType<unknown>,
       return useMutation(getSendGeminiMessageMutationOptions(options));
     }
 
+export const getRegenerateGeminiMessageUrl = (id: number,) => {
+
+
+
+
+  return `/api/gemini/conversations/${id}/regenerate`
+}
+
+/**
+ * @summary Regenerate the last assistant response (SSE stream)
+ */
+export const regenerateGeminiMessage = async (id: number, options?: RequestInit): Promise<unknown> => {
+
+  return customFetch<unknown>(getRegenerateGeminiMessageUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRegenerateGeminiMessageMutationOptions = <TError = ErrorType<GeminiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateGeminiMessage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof regenerateGeminiMessage>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['regenerateGeminiMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateGeminiMessage>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  regenerateGeminiMessage(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegenerateGeminiMessageMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateGeminiMessage>>>
+
+    export type RegenerateGeminiMessageMutationError = ErrorType<GeminiError>
+
+    /**
+ * @summary Regenerate the last assistant response (SSE stream)
+ */
+export const useRegenerateGeminiMessage = <TError = ErrorType<GeminiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateGeminiMessage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof regenerateGeminiMessage>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRegenerateGeminiMessageMutationOptions(options));
+    }
+
 export const getUpdateGeminiConversationTitleUrl = (id: number,) => {
 
 

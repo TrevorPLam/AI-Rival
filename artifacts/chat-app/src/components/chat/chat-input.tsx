@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from "react";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  onStop?: () => void;
   disabled?: boolean;
+  isStreaming?: boolean;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, disabled, isStreaming }: ChatInputProps) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,18 +48,31 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="Message Aria..."
           className="min-h-[56px] max-h-[200px] w-full resize-none border-0 focus-visible:ring-0 px-4 py-4 bg-transparent"
-          disabled={disabled}
+          disabled={isStreaming}
           data-testid="input-chat"
         />
-        <Button
-          size="icon"
-          className="absolute bottom-2 right-2 h-10 w-10 shrink-0"
-          disabled={!input.trim() || disabled}
-          onClick={handleSend}
-          data-testid="button-send-chat"
-        >
-          <SendHorizontal className="h-5 w-5" />
-        </Button>
+        {isStreaming ? (
+          <Button
+            size="icon"
+            variant="outline"
+            className="absolute bottom-2 right-2 h-10 w-10 shrink-0"
+            onClick={onStop}
+            title="Stop generating"
+            data-testid="button-stop-chat"
+          >
+            <Square className="h-4 w-4 fill-current" />
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            className="absolute bottom-2 right-2 h-10 w-10 shrink-0"
+            disabled={!input.trim() || disabled}
+            onClick={handleSend}
+            data-testid="button-send-chat"
+          >
+            <SendHorizontal className="h-5 w-5" />
+          </Button>
+        )}
       </div>
       <div className="text-center text-xs text-muted-foreground mt-3">
         Aria can make mistakes. Consider verifying important information.
