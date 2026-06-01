@@ -1,14 +1,15 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Download, PanelLeft } from "lucide-react";
+import { Download, PanelLeft, ArrowDown } from "lucide-react";
 import { useListGeminiMessages, useGetGeminiConversation } from "@workspace/api-client-react";
 import { useChatStreaming } from "@/hooks/use-chat";
 import { useCreateGeminiConversation, getListGeminiConversationsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
 
 const SUGGESTED_PROMPTS = [
   { label: "Explain a concept", prompt: "Explain quantum computing in simple terms" },
@@ -30,6 +31,9 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
   const scrollRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState<string>("");
   
   const { data: messages, isLoading: isLoadingMessages } = useListGeminiMessages(
     conversationId as number,
@@ -41,21 +45,54 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
     { query: { enabled: !!conversationId } }
   );
 
-  const { sendMessage, regenerateResponse, stopGeneration, isStreaming, streamingMessage } = useChatStreaming(conversationId);
+  const { sendMessage, regenerateResponse, editMessage, stopGeneration, isStreaming, streamingMessage } = useChatStreaming(conversationId);
   const createMutation = useCreateGeminiConversation();
 
+  const getScrollElement = useCallback(() => {
+    if (!scrollRef.current) return null;
+    return scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = getScrollElement();
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [getScrollElement]);
+
   useEffect(() => {
-    if (scrollRef.current) {
-      const scrollElement = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
-    }
-  }, [messages, streamingMessage]);
+    scrollToBottom();
+  }, [messages, streamingMessage, scrollToBottom]);
+
+  useEffect(() => {
+    const el = getScrollElement();
+    if (!el) return;
+    const onScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBtn(distFromBottom > 120);
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [getScrollElement, conversationId]);
 
   const handleSend = (content: string) => {
     if (!conversationId) return;
     sendMessage(conversationId, content, systemInstruction);
+  };
+
+  const handleEdit = (messageId: number, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingContent(content);
+  };
+
+  const handleSubmitEdit = (newContent: string) => {
+    if (!conversationId || editingMessageId === null) return;
+    setEditingMessageId(null);
+    setEditingContent("");
+    editMessage(conversationId, editingMessageId, newContent, systemInstruction);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent("");
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -172,11 +209,13 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
             {messages?.map((msg) => (
               <MessageBubble
                 key={msg.id}
+                messageId={msg.id}
                 role={msg.role as "user" | "assistant"}
                 content={msg.content}
                 createdAt={msg.createdAt}
                 isLastAssistant={msg.id === lastAssistantId && !isStreaming}
                 onRegenerate={handleRegenerate}
+                onEdit={msg.role === "user" && !isStreaming ? () => handleEdit(msg.id, msg.content) : undefined}
               />
             ))}
             {isStreaming && streamingMessage && (
@@ -190,12 +229,33 @@ export function ChatArea({ conversationId, sidebarOpen, onToggleSidebar, systemI
         )}
       </ScrollArea>
 
+      {showScrollBtn && (
+        <div className="absolute bottom-[100px] left-1/2 -translate-x-1/2 z-20">
+          <Button
+            size="sm"
+            variant="secondary"
+            className={cn(
+              "rounded-full shadow-md gap-1.5 px-3 transition-all",
+              "border border-border"
+            )}
+            onClick={scrollToBottom}
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            Scroll to bottom
+          </Button>
+        </div>
+      )}
+
       <div className="shrink-0 w-full z-10">
         <ChatInput
-          onSend={handleSend}
+          onSend={editingMessageId !== null ? handleSubmitEdit : handleSend}
           onStop={stopGeneration}
           disabled={false}
           isStreaming={isStreaming}
+          initialValue={editingMessageId !== null ? editingContent : undefined}
+          isEditing={editingMessageId !== null}
+          onCancelEdit={handleCancelEdit}
+          key={editingMessageId ?? "normal"}
         />
       </div>
     </div>

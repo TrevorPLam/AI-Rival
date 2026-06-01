@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, gte } from "drizzle-orm";
 import { db, conversations, messages } from "@workspace/db";
 import { ai } from "@workspace/integrations-gemini-ai";
 import {
@@ -304,6 +304,107 @@ router.post("/gemini/conversations/:id/regenerate", async (req, res): Promise<vo
     res.end();
   } catch (err) {
     req.log.error({ err }, "Gemini regenerate stream error");
+    res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
+    res.end();
+  }
+});
+
+router.post("/gemini/conversations/:id/edit", async (req, res): Promise<void> => {
+  const convId = parseInt(req.params.id, 10);
+  if (isNaN(convId)) {
+    res.status(400).json({ error: "Invalid conversation id" });
+    return;
+  }
+
+  const { messageId, content, systemInstruction } = req.body as {
+    messageId?: number;
+    content?: string;
+    systemInstruction?: string;
+  };
+
+  if (typeof messageId !== "number" || !content || typeof content !== "string" || content.trim().length === 0) {
+    res.status(400).json({ error: "messageId (number) and content (string) are required" });
+    return;
+  }
+
+  const [conv] = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, convId));
+
+  if (!conv) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+
+  const [targetMsg] = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, messageId));
+
+  if (!targetMsg) {
+    res.status(404).json({ error: "Message not found" });
+    return;
+  }
+
+  await db
+    .delete(messages)
+    .where(gte(messages.id, targetMsg.id));
+
+  await db.insert(messages).values({
+    conversationId: convId,
+    role: "user",
+    content: content.trim(),
+  });
+
+  const history = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.conversationId, convId))
+    .orderBy(messages.createdAt);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  let fullResponse = "";
+
+  try {
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: history.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+      config: {
+        maxOutputTokens: 8192,
+        ...(systemInstruction?.trim() ? { systemInstruction: systemInstruction.trim() } : {}),
+      },
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        fullResponse += text;
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      }
+    }
+
+    await db.insert(messages).values({
+      conversationId: convId,
+      role: "assistant",
+      content: fullResponse,
+    });
+
+    await db
+      .update(conversations)
+      .set({ updatedAt: new Date() })
+      .where(eq(conversations.id, convId));
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    req.log.error({ err }, "Gemini edit stream error");
     res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
     res.end();
   }

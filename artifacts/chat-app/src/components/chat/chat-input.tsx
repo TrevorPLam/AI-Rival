@@ -2,17 +2,35 @@ import { useState, useRef, useEffect } from "react";
 import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+
+const MAX_CHARS = 4000;
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   onStop?: () => void;
   disabled?: boolean;
   isStreaming?: boolean;
+  initialValue?: string;
+  onCancelEdit?: () => void;
+  isEditing?: boolean;
 }
 
-export function ChatInput({ onSend, onStop, disabled, isStreaming }: ChatInputProps) {
-  const [input, setInput] = useState("");
+export function ChatInput({ onSend, onStop, disabled, isStreaming, initialValue, onCancelEdit, isEditing }: ChatInputProps) {
+  const [input, setInput] = useState(initialValue ?? "");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (initialValue !== undefined) {
+      setInput(initialValue);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(initialValue.length, initialValue.length);
+        }
+      }, 0);
+    }
+  }, [initialValue]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -36,11 +54,27 @@ export function ChatInput({ onSend, onStop, disabled, isStreaming }: ChatInputPr
       e.preventDefault();
       handleSend();
     }
+    if (e.key === "Escape" && isEditing && onCancelEdit) {
+      onCancelEdit();
+    }
   };
+
+  const charCount = input.length;
+  const nearLimit = charCount > MAX_CHARS * 0.8;
+  const overLimit = charCount > MAX_CHARS;
 
   return (
     <div className="p-4 bg-background border-t border-border">
-      <div className="max-w-3xl mx-auto relative flex items-end shadow-sm rounded-xl border border-border bg-card">
+      {isEditing && (
+        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">Editing message</span>
+          <button className="hover:text-foreground transition-colors" onClick={onCancelEdit}>Cancel (Esc)</button>
+        </div>
+      )}
+      <div className={cn(
+        "max-w-3xl mx-auto relative flex items-end shadow-sm rounded-xl border bg-card",
+        isEditing ? "border-primary/50 ring-1 ring-primary/20" : "border-border"
+      )}>
         <Textarea
           ref={textareaRef}
           value={input}
@@ -66,7 +100,7 @@ export function ChatInput({ onSend, onStop, disabled, isStreaming }: ChatInputPr
           <Button
             size="icon"
             className="absolute bottom-2 right-2 h-10 w-10 shrink-0"
-            disabled={!input.trim() || disabled}
+            disabled={!input.trim() || disabled || overLimit}
             onClick={handleSend}
             data-testid="button-send-chat"
           >
@@ -74,8 +108,15 @@ export function ChatInput({ onSend, onStop, disabled, isStreaming }: ChatInputPr
           </Button>
         )}
       </div>
-      <div className="text-center text-xs text-muted-foreground mt-3">
-        Aria can make mistakes. Consider verifying important information.
+      <div className="max-w-3xl mx-auto flex items-center justify-between mt-2 px-1">
+        <div className="text-xs text-muted-foreground">
+          Aria can make mistakes. Consider verifying important information.
+        </div>
+        {nearLimit && (
+          <div className={cn("text-xs tabular-nums", overLimit ? "text-destructive font-medium" : "text-muted-foreground")}>
+            {charCount}/{MAX_CHARS}
+          </div>
+        )}
       </div>
     </div>
   );

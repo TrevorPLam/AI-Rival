@@ -114,9 +114,16 @@ export function useChatStreaming(conversationId: number | null) {
     await runStream(convId, `/api/gemini/conversations/${convId}/regenerate`, {});
   }, [runStream]);
 
+  const editMessage = useCallback(async (convId: number, messageId: number, content: string, systemInstruction?: string) => {
+    const body: Record<string, string | number> = { messageId, content };
+    if (systemInstruction?.trim()) body.systemInstruction = systemInstruction.trim();
+    await runStream(convId, `/api/gemini/conversations/${convId}/edit`, body);
+  }, [runStream]);
+
   return {
     sendMessage,
     regenerateResponse,
+    editMessage,
     stopGeneration,
     isStreaming,
     streamingMessage,

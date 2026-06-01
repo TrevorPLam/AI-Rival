@@ -7,7 +7,7 @@ import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, RefreshCw } from "lucide-react";
+import { Copy, Check, RefreshCw, Pencil, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import type { Components } from "react-markdown";
 
@@ -18,6 +18,8 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   isLastAssistant?: boolean;
   onRegenerate?: () => void;
+  onEdit?: () => void;
+  messageId?: number;
 }
 
 function CopyButton({ text, className }: { text: string; className?: string }) {
@@ -47,9 +49,10 @@ function formatTime(date: string | Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function MessageBubble({ role, content, createdAt, isStreaming, isLastAssistant, onRegenerate }: MessageBubbleProps) {
+export function MessageBubble({ role, content, createdAt, isStreaming, isLastAssistant, onRegenerate, onEdit }: MessageBubbleProps) {
   const isUser = role === "user";
   const [hovered, setHovered] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -140,6 +143,19 @@ export function MessageBubble({ role, content, createdAt, isStreaming, isLastAss
               )}
             >
               <CopyButton text={content} />
+
+              {isUser && onEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onEdit}
+                  title="Edit message"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
               {!isUser && isLastAssistant && onRegenerate && (
                 <Button
                   variant="ghost"
@@ -151,6 +167,30 @@ export function MessageBubble({ role, content, createdAt, isStreaming, isLastAss
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               )}
+
+              {!isUser && (
+                <div className="flex items-center gap-0.5 ml-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn("h-7 w-7", feedback === "up" && "text-green-500")}
+                    onClick={() => setFeedback(feedback === "up" ? null : "up")}
+                    title="Good response"
+                  >
+                    <ThumbsUp className={cn("h-3.5 w-3.5", feedback === "up" && "fill-current")} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn("h-7 w-7", feedback === "down" && "text-red-500")}
+                    onClick={() => setFeedback(feedback === "down" ? null : "down")}
+                    title="Bad response"
+                  >
+                    <ThumbsDown className={cn("h-3.5 w-3.5", feedback === "down" && "fill-current")} />
+                  </Button>
+                </div>
+              )}
+
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-1 select-none">
                   {formatTime(createdAt)}
